@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>파트너 전용 스텔스 호스팅</title>
+    <title>츄뭉 전용 스텔스 호스팅</title>
     <style>
         body {
             background: #121212;
@@ -22,6 +22,7 @@
             border-radius: 12px;
             width: 350px;
             text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         }
 
         input[type="text"] {
@@ -42,6 +43,11 @@
             border-radius: 8px;
             cursor: pointer;
             margin-top: 15px;
+            transition: 0.3s;
+        }
+
+        .drop-zone:hover {
+            background: rgba(76, 175, 80, 0.1);
         }
 
         input[type="file"] {
@@ -58,6 +64,27 @@
             margin-top: 15px;
             font-weight: bold;
             width: 100%;
+            transition: 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #45a049;
+        }
+
+        .toggle-container {
+            margin: 15px 0;
+            font-size: 14px;
+            color: #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        input[type="checkbox"] {
+            cursor: pointer;
+            transform: scale(1.2);
         }
     </style>
 </head>
@@ -71,46 +98,85 @@
         <input type="text" id="subName" placeholder="이미지 종류 (예: profile)" required>
         <input type="text" id="imgNum" placeholder="고유 숫자/이름 (예: 01)" required>
 
+        <label class="toggle-container">
+            <input type="checkbox" id="compressWebp" checked>
+            PNG/JPG 올릴 때 WebP로 쥐어짜기 (용량 다이어트)
+        </label>
+
         <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-            <p id="dropText">여기를 클릭해서 짤 선택!</p>
+            <p id="dropText">여기를 클릭해서 짤 선택!<br><span style="font-size: 12px; color: #888;">(드래그 앤 드롭 쌉가능)</span></p>
         </div>
         <input type="file" id="fileInput" accept="image/*">
 
-        <div id="result" style="margin-top: 15px;"></div>
+        <div id="result" style="margin-top: 15px; word-break: break-all;"></div>
     </div>
 
     <script>
-        const API_KEY = 'a02aac4c49fbaaff4e949fee56b90eab'; // ⚠️ 아까 딴 Imgbb 키 무조건 넣어!!
+        const API_KEY = 'a02aac4c49fbaaff4e949fee56b90eab';
 
-        document.getElementById('fileInput').addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+        // 🛠️ 짤 강제 다이어트(WebP 변환) 함수
+        async function compressToWebP(file) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.src = URL.createObjectURL(file);
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    // 화질 85%로 타협해서 WebP로 압축
+                    canvas.toBlob((blob) => {
+                        const newName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+                        resolve(new File([blob], newName, { type: 'image/webp' }));
+                    }, 'image/webp', 0.85);
+                };
+            });
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        // 업로드 코어 로직
+        async function handleUpload(file) {
             if (!file) return;
 
             const main = document.getElementById('mainName').value.trim();
             const sub = document.getElementById('subName').value.trim();
             const num = document.getElementById('imgNum').value.trim();
+            const doCompress = document.getElementById('compressWebp').checked;
 
             if (!main || !sub || !num) {
-                alert('이름이랑 분류, 숫자 다 채워라!');
+                alert('이름이랑 분류, 숫자 다 채워라 파트너!');
                 return;
             }
 
-            // 커스텀 주소 조합 (예: Allie/profile/01)
             const customPath = `${main}/${sub}/${num}`;
             const resultDiv = document.getElementById('result');
+
+            let finalFile = file;
+
+            // 체크 켜져있고, 원래 WebP가 아니면 쥐어짜기 실행
+            if (doCompress && !file.type.includes('webp')) {
+                resultDiv.innerHTML = '<span style="color:#FFC107;">짤 압축기로 쥐어짜는 중... 존버...</span>';
+                finalFile = await compressToWebP(file);
+            }
 
             resultDiv.innerHTML = '<span style="color:#FFC107;">Imgbb에 쏘는 중...</span>';
 
             try {
-                // 1. Imgbb에 다이렉트 업로드 (서버 트래픽 0)
-                const formData = new FormData(); formData.append('image', file);
+                const formData = new FormData();
+                formData.append('image', finalFile);
+
                 const imgRes = await fetch(`https://api.imgbb.com/1/upload?key=${API_KEY}`, { method: 'POST', body: formData });
                 const imgData = await imgRes.json();
-                const directUrl = imgData.data.url; // Imgbb 원본 주소 획득
 
-                resultDiv.innerHTML = '<span style="color:#FFC107;">DB에 주소 박아넣는 중...</span>';
+                if (!imgData.success) throw new Error('Imgbb 업로드 컷 당함');
+                const directUrl = imgData.data.url;
 
-                // 2. 우리 Vercel 서버(MongoDB)에 주소 매핑 데이터 저장
+                resultDiv.innerHTML = '<span style="color:#FFC107;">DB에 주소 꽂아넣는 중...</span>';
+
                 const saveRes = await fetch('/api/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -121,15 +187,27 @@
                     const finalUrl = `https://edena.cloud/${customPath}`;
                     resultDiv.innerHTML = `
             <span style="color: #4CAF50; font-weight: bold;">성공 씨발! 🎉</span><br><br>
-            <a href="${finalUrl}" target="_blank" style="color: #4CAF50;">${finalUrl}</a><br>
+            <a href="${finalUrl}" target="_blank" style="color: #4CAF50; text-decoration: none;">${finalUrl}</a><br>
             <button class="copy-btn" onclick="navigator.clipboard.writeText('${finalUrl}'); alert('복사 완료!');">링크 복사하기</button>
           `;
                 } else {
                     resultDiv.innerHTML = '<span style="color: #ff4444;">DB 저장 실패함 좆됨.</span>';
                 }
             } catch (err) {
-                resultDiv.innerHTML = '<span style="color: #ff4444;">네트워크 뻗음.</span>';
+                resultDiv.innerHTML = `<span style="color: #ff4444;">에러 났다 씨발: ${err.message}</span>`;
             }
+        }
+
+        // 파일 선택 이벤트
+        fileInput.addEventListener('change', (e) => handleUpload(e.target.files[0]));
+
+        // 드래그 앤 드롭 이벤트들
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = 'rgba(76, 175, 80, 0.2)'; });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.style.background = 'transparent'; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = 'transparent';
+            if (e.dataTransfer.files.length > 0) handleUpload(e.dataTransfer.files[0]);
         });
     </script>
 </body>
