@@ -86,12 +86,35 @@
             cursor: pointer;
             transform: scale(1.2);
         }
+
+        /* 🔥 새로 추가된 갤러리 이동 버튼 CSS */
+        .gallery-link {
+            display: inline-block;
+            background: #333;
+            color: #4CAF50;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 20px;
+            border: 1px solid #4CAF50;
+            transition: 0.3s;
+            width: 85%;
+        }
+
+        .gallery-link:hover {
+            background: #4CAF50;
+            color: #1e1e1e;
+        }
     </style>
 </head>
 
 <body>
 
     <div class="upload-container">
+        <a href="/gallery" class="gallery-link">🗂️ 내 짤 갤러리 열기</a>
+
         <h2 style="color: #4CAF50; margin-top:0;">커스텀 짤 업로더</h2>
 
         <input type="text" id="mainName" placeholder="대표 이름 (예: Allie)" required>
@@ -112,9 +135,9 @@
     </div>
 
     <script>
+        // ⚠️ 경고: 아까 쓰던 네 Imgbb API 키 다시 복붙하는 거 잊지 마라!!!
         const API_KEY = 'a02aac4c49fbaaff4e949fee56b90eab';
 
-        // 🛠️ 짤 강제 다이어트(WebP 변환) 함수
         async function compressToWebP(file) {
             return new Promise((resolve) => {
                 const img = new Image();
@@ -126,7 +149,6 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0);
 
-                    // 화질 85%로 타협해서 WebP로 압축
                     canvas.toBlob((blob) => {
                         const newName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
                         resolve(new File([blob], newName, { type: 'image/webp' }));
@@ -138,7 +160,6 @@
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
 
-        // 업로드 코어 로직
         async function handleUpload(file) {
             if (!file) return;
 
@@ -148,7 +169,7 @@
             const doCompress = document.getElementById('compressWebp').checked;
 
             if (!main || !sub || !num) {
-                alert('이름이랑 분류, 숫자 다 채워라 파트너!');
+                alert('이름이랑 분류, 숫자 다 채워라!');
                 return;
             }
 
@@ -157,7 +178,6 @@
 
             let finalFile = file;
 
-            // 체크 켜져있고, 원래 WebP가 아니면 쥐어짜기 실행
             if (doCompress && !file.type.includes('webp')) {
                 resultDiv.innerHTML = '<span style="color:#FFC107;">짤 압축기로 쥐어짜는 중... 존버...</span>';
                 finalFile = await compressToWebP(file);
@@ -198,10 +218,8 @@
             }
         }
 
-        // 파일 선택 이벤트
         fileInput.addEventListener('change', (e) => handleUpload(e.target.files[0]));
 
-        // 드래그 앤 드롭 이벤트들
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = 'rgba(76, 175, 80, 0.2)'; });
         dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.style.background = 'transparent'; });
         dropZone.addEventListener('drop', (e) => {

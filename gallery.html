@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>츄뭉의 짤 갤러리</title>
+    <style>
+        body {
+            background: #121212;
+            color: #fff;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            color: #4CAF50;
+        }
+
+        .back-btn {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: none;
+        }
+
+        .back-btn:hover {
+            background: #555;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .folder {
+            background: #1e1e1e;
+            padding: 30px 10px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid #333;
+            transition: 0.2s;
+        }
+
+        .folder:hover {
+            background: #2a2a2a;
+            border-color: #4CAF50;
+        }
+
+        .folder-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .folder-name {
+            font-weight: bold;
+            font-size: 16px;
+            word-break: break-all;
+        }
+
+        .image-card {
+            background: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #333;
+            text-align: center;
+        }
+
+        .image-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .image-card p {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .breadcrumb {
+            font-size: 18px;
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>🗂️ 스텔스 갤러리</h1>
+        <a href="/" style="color: #aaa; text-decoration: none;">업로드 화면 가기</a>
+    </div>
+
+    <div class="breadcrumb" id="breadcrumb">📂 최상위 폴더</div>
+    <button class="back-btn" id="backBtn" onclick="goBack()">🔙 뒤로 가기</button>
+
+    <div class="grid" id="gridContainer">
+        <div style="color: #FFC107;">DB에서 짤 긁어오는 중... 존버...</div>
+    </div>
+
+    <script>
+        let dbData = []; // 원본 데이터
+        let tree = {};   // 폴더 구조화된 데이터
+        let currentLevel = 0; // 0: 메인폴더, 1: 서브폴더, 2: 짤 화면
+        let selectedMain = '';
+        let selectedSub = '';
+
+        const grid = document.getElementById('gridContainer');
+        const breadcrumb = document.getElementById('breadcrumb');
+        const backBtn = document.getElementById('backBtn');
+
+        // API에서 데이터 긁어오기
+        async function fetchData() {
+            try {
+                const res = await fetch('/api/gallery');
+                dbData = await res.json();
+                buildTree();
+                renderMainFolders();
+            } catch (err) {
+                grid.innerHTML = '<div style="color: red;">씨발 에러 났다. 서버 확인해봐.</div>';
+            }
+        }
+
+        // 데이터를 쪼개서 폴더 나무(Tree) 구조로 만들기
+        function buildTree() {
+            tree = {};
+            dbData.forEach(item => {
+                // customPath가 "ed/렌조/1" 이면 ['ed', '렌조', '1'] 로 쪼갬
+                const parts = item.customPath.split('/');
+                if (parts.length === 3) {
+                    const [main, sub, num] = parts;
+                    if (!tree[main]) tree[main] = {};
+                    if (!tree[main][sub]) tree[main][sub] = [];
+                    tree[main][sub].push({ num, url: item.directUrl, fullPath: item.customPath });
+                }
+            });
+        }
+
+        // 1단계: 메인 폴더 (대표 이름) 보여주기
+        function renderMainFolders() {
+            currentLevel = 0;
+            breadcrumb.innerText = '📂 최상위 폴더';
+            backBtn.style.display = 'none';
+            grid.innerHTML = '';
+
+            Object.keys(tree).forEach(mainName => {
+                const div = document.createElement('div');
+                div.className = 'folder';
+                div.innerHTML = `<div class="folder-icon">📁</div><div class="folder-name">${mainName}</div>`;
+                div.onclick = () => renderSubFolders(mainName);
+                grid.appendChild(div);
+            });
+            if (Object.keys(tree).length === 0) grid.innerHTML = '<div>아직 올린 짤이 하나도 없어 씨발!</div>';
+        }
+
+        // 2단계: 서브 폴더 (이미지 종류) 보여주기
+        function renderSubFolders(mainName) {
+            currentLevel = 1;
+            selectedMain = mainName;
+            breadcrumb.innerText = `📂 ${mainName}`;
+            backBtn.style.display = 'inline-block';
+            grid.innerHTML = '';
+
+            Object.keys(tree[mainName]).forEach(subName => {
+                const div = document.createElement('div');
+                div.className = 'folder';
+                div.innerHTML = `<div class="folder-icon">📂</div><div class="folder-name">${subName}</div>`;
+                div.onclick = () => renderImages(mainName, subName);
+                grid.appendChild(div);
+            });
+        }
+
+        // 3단계: 진짜 짤들 보여주기
+        function renderImages(mainName, subName) {
+            currentLevel = 2;
+            selectedSub = subName;
+            breadcrumb.innerText = `📂 ${mainName} / 📂 ${subName}`;
+            backBtn.style.display = 'inline-block';
+            grid.innerHTML = '';
+
+            tree[mainName][subName].forEach(img => {
+                const finalUrl = `https://edena.cloud/${img.fullPath}`;
+                const div = document.createElement('div');
+                div.className = 'image-card';
+                // 클릭하면 새 창에서 짤 원본 열리게 세팅
+                div.innerHTML = `
+          <a href="${finalUrl}" target="_blank">
+            <img src="${img.url}" loading="lazy" alt="짤">
+          </a>
+          <p># ${img.num}</p>
+        `;
+                grid.appendChild(div);
+            });
+        }
+
+        // 뒤로 가기 버튼 로직
+        function goBack() {
+            if (currentLevel === 2) renderSubFolders(selectedMain);
+            else if (currentLevel === 1) renderMainFolders();
+        }
+
+        // 시작!
+        fetchData();
+    </script>
+</body>
+
+</html>

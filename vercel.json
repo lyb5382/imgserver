@@ -5,6 +5,10 @@
             "destination": "/api/:path*"
         },
         {
+            "source": "/gallery",
+            "destination": "/gallery.html"
+        },
+        {
             "source": "/:path+",
             "destination": "/api/redirect"
         }
