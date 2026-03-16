@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>파트너 전용 스텔스 호스팅</title>
+    <style>
+        body {
+            background: #121212;
+            color: #fff;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .upload-container {
+            background: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            width: 350px;
+            text-align: center;
+        }
+
+        input[type="text"] {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: none;
+            background: #333;
+            color: #fff;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .drop-zone {
+            border: 2px dashed #4CAF50;
+            padding: 30px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .copy-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-weight: bold;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="upload-container">
+        <h2 style="color: #4CAF50; margin-top:0;">커스텀 짤 업로더</h2>
+
+        <input type="text" id="mainName" placeholder="대표 이름 (예: Allie)" required>
+        <input type="text" id="subName" placeholder="이미지 종류 (예: profile)" required>
+        <input type="text" id="imgNum" placeholder="고유 숫자/이름 (예: 01)" required>
+
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <p id="dropText">여기를 클릭해서 짤 선택!</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*">
+
+        <div id="result" style="margin-top: 15px;"></div>
+    </div>
+
+    <script>
+        const API_KEY = 'a02aac4c49fbaaff4e949fee56b90eab'; // ⚠️ 아까 딴 Imgbb 키 무조건 넣어!!
+
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const main = document.getElementById('mainName').value.trim();
+            const sub = document.getElementById('subName').value.trim();
+            const num = document.getElementById('imgNum').value.trim();
+
+            if (!main || !sub || !num) {
+                alert('이름이랑 분류, 숫자 다 채워라!');
+                return;
+            }
+
+            // 커스텀 주소 조합 (예: Allie/profile/01)
+            const customPath = `${main}/${sub}/${num}`;
+            const resultDiv = document.getElementById('result');
+
+            resultDiv.innerHTML = '<span style="color:#FFC107;">Imgbb에 쏘는 중...</span>';
+
+            try {
+                // 1. Imgbb에 다이렉트 업로드 (서버 트래픽 0)
+                const formData = new FormData(); formData.append('image', file);
+                const imgRes = await fetch(`https://api.imgbb.com/1/upload?key=${API_KEY}`, { method: 'POST', body: formData });
+                const imgData = await imgRes.json();
+                const directUrl = imgData.data.url; // Imgbb 원본 주소 획득
+
+                resultDiv.innerHTML = '<span style="color:#FFC107;">DB에 주소 박아넣는 중...</span>';
+
+                // 2. 우리 Vercel 서버(MongoDB)에 주소 매핑 데이터 저장
+                const saveRes = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customPath, directUrl })
+                });
+
+                if (saveRes.ok) {
+                    const finalUrl = `https://edena.cloud/${customPath}`;
+                    resultDiv.innerHTML = `
+            <span style="color: #4CAF50; font-weight: bold;">성공 씨발! 🎉</span><br><br>
+            <a href="${finalUrl}" target="_blank" style="color: #4CAF50;">${finalUrl}</a><br>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('${finalUrl}'); alert('복사 완료!');">링크 복사하기</button>
+          `;
+                } else {
+                    resultDiv.innerHTML = '<span style="color: #ff4444;">DB 저장 실패함 좆됨.</span>';
+                }
+            } catch (err) {
+                resultDiv.innerHTML = '<span style="color: #ff4444;">네트워크 뻗음.</span>';
+            }
+        });
+    </script>
+</body>
+
+</html>
