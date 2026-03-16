@@ -35,6 +35,7 @@
             border-radius: 4px;
             cursor: pointer;
             display: none;
+            margin-bottom: 20px;
         }
 
         .back-btn:hover {
@@ -79,6 +80,9 @@
             overflow: hidden;
             border: 1px solid #333;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .image-card img {
@@ -88,7 +92,7 @@
         }
 
         .image-card p {
-            margin: 10px 0;
+            margin: 10px 0 5px 0;
             font-size: 14px;
             color: #aaa;
         }
@@ -96,7 +100,26 @@
         .breadcrumb {
             font-size: 18px;
             color: #aaa;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+        }
+
+        /* 🔥 갤러리용 복사 버튼 CSS 추가 */
+        .copy-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            width: 90%;
+            margin-bottom: 10px;
+            transition: 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #45a049;
         }
     </style>
 </head>
@@ -108,16 +131,16 @@
     </div>
 
     <div class="breadcrumb" id="breadcrumb">📂 최상위 폴더</div>
-    <button class="back-btn" id="backBtn" onclick="goBack()">🔙 뒤로 가기</button>
+    <button class="back-btn" id="backBtn" onclick="goBack()">🔙 상위 폴더로</button>
 
     <div class="grid" id="gridContainer">
         <div style="color: #FFC107;">DB에서 짤 긁어오는 중... 존버...</div>
     </div>
 
     <script>
-        let dbData = []; // 원본 데이터
-        let tree = {};   // 폴더 구조화된 데이터
-        let currentLevel = 0; // 0: 메인폴더, 1: 서브폴더, 2: 짤 화면
+        let dbData = [];
+        let tree = {};
+        let currentLevel = 0;
         let selectedMain = '';
         let selectedSub = '';
 
@@ -125,7 +148,6 @@
         const breadcrumb = document.getElementById('breadcrumb');
         const backBtn = document.getElementById('backBtn');
 
-        // API에서 데이터 긁어오기
         async function fetchData() {
             try {
                 const res = await fetch('/api/gallery');
@@ -137,11 +159,9 @@
             }
         }
 
-        // 데이터를 쪼개서 폴더 나무(Tree) 구조로 만들기
         function buildTree() {
             tree = {};
             dbData.forEach(item => {
-                // customPath가 "ed/렌조/1" 이면 ['ed', '렌조', '1'] 로 쪼갬
                 const parts = item.customPath.split('/');
                 if (parts.length === 3) {
                     const [main, sub, num] = parts;
@@ -152,7 +172,6 @@
             });
         }
 
-        // 1단계: 메인 폴더 (대표 이름) 보여주기
         function renderMainFolders() {
             currentLevel = 0;
             breadcrumb.innerText = '📂 최상위 폴더';
@@ -169,7 +188,6 @@
             if (Object.keys(tree).length === 0) grid.innerHTML = '<div>아직 올린 짤이 하나도 없어 씨발!</div>';
         }
 
-        // 2단계: 서브 폴더 (이미지 종류) 보여주기
         function renderSubFolders(mainName) {
             currentLevel = 1;
             selectedMain = mainName;
@@ -186,7 +204,6 @@
             });
         }
 
-        // 3단계: 진짜 짤들 보여주기
         function renderImages(mainName, subName) {
             currentLevel = 2;
             selectedSub = subName;
@@ -194,28 +211,40 @@
             backBtn.style.display = 'inline-block';
             grid.innerHTML = '';
 
-            tree[mainName][subName].forEach(img => {
+            // 숫자 순서대로 정렬되게 살짝 손봄
+            const sortedImages = tree[mainName][subName].sort((a, b) => a.num.localeCompare(b.num, undefined, { numeric: true }));
+
+            sortedImages.forEach(img => {
                 const finalUrl = `https://edena.cloud/${img.fullPath}`;
                 const div = document.createElement('div');
                 div.className = 'image-card';
-                // 클릭하면 새 창에서 짤 원본 열리게 세팅
+
+                // 🔥 대망의 복사 버튼 장착 완료
                 div.innerHTML = `
-          <a href="${finalUrl}" target="_blank">
+          <a href="${finalUrl}" target="_blank" style="width: 100%;">
             <img src="${img.url}" loading="lazy" alt="짤">
           </a>
           <p># ${img.num}</p>
+          <button class="copy-btn" onclick="copyGalleryLink('${finalUrl}')">🔗 링크 복사</button>
         `;
                 grid.appendChild(div);
             });
         }
 
-        // 뒤로 가기 버튼 로직
+        // 🔥 클립보드 복사 함수 추가
+        window.copyGalleryLink = function (url) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert('복사 완료 씨발! 캐챗에 냅다 꽂아라!');
+            }).catch(() => {
+                alert('복사 실패함 좆됨.');
+            });
+        }
+
         function goBack() {
             if (currentLevel === 2) renderSubFolders(selectedMain);
             else if (currentLevel === 1) renderMainFolders();
         }
 
-        // 시작!
         fetchData();
     </script>
 </body>
